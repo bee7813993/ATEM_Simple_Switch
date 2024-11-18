@@ -1,0 +1,2 @@
+# ATEM_Simple_Switch
+Blackmagic ATEM Switch を コマンドラインからシンプルに切り替えるようにするWindowsアプリ
