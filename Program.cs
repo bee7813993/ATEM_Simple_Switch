@@ -1,4 +1,4 @@
-﻿/* -LICENSE-START-
+/* -LICENSE-START-
 ** Copyright (c) 2018 Blackmagic Design
 **
 ** Permission is hereby granted, free of charge, to any person or organization
@@ -44,58 +44,192 @@ namespace SimpleSwitcherExampleCSharp
 			input.GetInputId(out id);
 			return id;
 		}
+        static string GetLongName(IBMDSwitcherInput input)
+        {
+            string name;
+            input.GetLongName(out name);
+            return name;
+        }
 
-		static void Main(string[] args)
-		{
-			// Create switcher discovery object
-			IBMDSwitcherDiscovery discovery = new CBMDSwitcherDiscovery();
+        static _BMDSwitcherPortType GetPortType(IBMDSwitcherInput input)
+        {
+            _BMDSwitcherPortType type;
+            input.GetPortType(out type);
+            return type;
+        }
+        static int Main(string[] args)
+        {
+            if (args.Length < 1)
+            {
+                Console.Error.WriteLine("使い方: SimpleSwitcherExampleCSharp.exe <入力ID> [wipe|mix] [IPアドレス]");
+                Console.Error.WriteLine("例1: SimpleSwitcherExampleCSharp.exe 2");
+                Console.Error.WriteLine("例2: SimpleSwitcherExampleCSharp.exe 2 mix");
+                Console.Error.WriteLine("例3: SimpleSwitcherExampleCSharp.exe 2 wipe 192.168.10.240");
+                return 1;
+            }
 
-			// Connect to switcher
-			IBMDSwitcher switcher;
-			_BMDSwitcherConnectToFailure failureReason;
-			discovery.ConnectTo("192.168.10.240", out switcher, out failureReason);
-			Console.WriteLine("Connected to switcher");
+            long targetId;
+            if (!long.TryParse(args[0], out targetId))
+            {
+                Console.Error.WriteLine($"エラー: 入力ID '{args[0]}' は数値ではありません。");
+                return 1;
+            }
 
-			var atem = new AtemSwitcher(switcher);
+            string transitionName = (args.Length >= 2) ? args[1].ToLowerInvariant() : "wipe";
+            string switcherIp = (args.Length >= 3) ? args[2] : "";
 
-			// Get reference to various objects
-			IBMDSwitcherMixEffectBlock me0 = atem.MixEffectBlocks.First();
-			IBMDSwitcherTransitionParameters me0TransitionParams = me0 as IBMDSwitcherTransitionParameters;
-			IBMDSwitcherTransitionWipeParameters me0WipeTransitionParams = me0 as IBMDSwitcherTransitionWipeParameters;
-			IBMDSwitcherInput input4 = atem.SwitcherInputs
-										.Where((i, ret) => {
-											_BMDSwitcherPortType type;
-											i.GetPortType(out type);
-											return type == _BMDSwitcherPortType.bmdSwitcherPortTypeExternal;
-										})
-										.ElementAt(4);
-			// Setup the transition
-			Console.WriteLine("Setting preview input");
-			me0.SetPreviewInput(GetInputId(input4));
+            bool useWipe;
+            if (transitionName == "wipe")
+            {
+                useWipe = true;
+            }
+            else if (transitionName == "mix")
+            {
+                useWipe = false;
+            }
+            else
+            {
+                Console.Error.WriteLine($"エラー: トランジション種別 '{transitionName}' は無効です。wipe または mix を指定してください。");
+                return 1;
+            }
 
-			Console.WriteLine("Setting next transition selection");
-			me0TransitionParams.SetNextTransitionSelection(_BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionBackground);
+            try
+            {
+                IBMDSwitcherDiscovery discovery = new CBMDSwitcherDiscovery();
 
-			Console.WriteLine("Setting next transition style");
-			me0TransitionParams.SetNextTransitionStyle(_BMDSwitcherTransitionStyle.bmdSwitcherTransitionStyleWipe);
+                IBMDSwitcher switcher;
+                _BMDSwitcherConnectToFailure failureReason;
+                discovery.ConnectTo(switcherIp, out switcher, out failureReason);
 
-			Console.WriteLine("Setting transition style");
-			me0WipeTransitionParams.SetPattern(_BMDSwitcherPatternStyle.bmdSwitcherPatternStyleRectangleIris);
+                if (switcher == null)
+                {
+                    Console.Error.WriteLine($"ATEMへの接続に失敗しました。IP='{switcherIp}' Reason={failureReason}");
+                    return 1;
+                }
 
-			Console.WriteLine("Setting transition rate");
-			me0WipeTransitionParams.SetRate(60);
-			
-			// Perform the transition
-			Console.WriteLine("Performing auto transition");
-			me0.PerformAutoTransition();
-			System.Threading.Thread.Sleep(2000);
-			System.Threading.Thread.Sleep(1000);
-			me0.PerformAutoTransition();
+                Console.WriteLine(string.IsNullOrEmpty(switcherIp)
+                    ? "Connected to switcher (USB/auto)"
+                    : $"Connected to switcher ({switcherIp})");
 
-			Console.Write("Press ENTER to exit...");
-			Console.ReadLine();
-		}
-	}
+                var atem = new AtemSwitcher(switcher);
+
+                IBMDSwitcherMixEffectBlock me0 = atem.MixEffectBlocks.First();
+                IBMDSwitcherTransitionParameters me0TransitionParams = me0 as IBMDSwitcherTransitionParameters;
+                IBMDSwitcherTransitionWipeParameters me0WipeTransitionParams = me0 as IBMDSwitcherTransitionWipeParameters;
+                IBMDSwitcherTransitionMixParameters me0MixTransitionParams = me0 as IBMDSwitcherTransitionMixParameters;
+
+                long programId;
+                long previewId;
+                int inTransition;
+
+                me0.GetProgramInput(out programId);
+                me0.GetPreviewInput(out previewId);
+                me0.GetInTransition(out inTransition);
+
+                var externalInputs = atem.SwitcherInputs
+                    .Where(i => {
+                        _BMDSwitcherPortType type;
+                        i.GetPortType(out type);
+                        return type == _BMDSwitcherPortType.bmdSwitcherPortTypeExternal;
+                    })
+                    .ToList();
+
+                IBMDSwitcherInput targetInput = externalInputs
+                    .FirstOrDefault(i => GetInputId(i) == targetId);
+
+                if (targetInput == null)
+                {
+                    Console.Error.WriteLine($"エラー: 入力ID {targetId} は見つかりませんでした。");
+                    return 1;
+                }
+
+                if (programId == targetId)
+                {
+                    Console.WriteLine("指定した入力はすでに Program 側です。切り替え不要です。");
+                    return 0;
+                }
+
+                Console.WriteLine($"Current Program ID : {programId}");
+                Console.WriteLine($"Current Preview ID : {previewId}");
+                Console.WriteLine($"Target Preview ID  : {targetId}");
+                Console.WriteLine($"Target Input Name  : {GetLongName(targetInput)}");
+
+                Console.WriteLine("Setting preview input");
+                me0.SetPreviewInput(targetId);
+
+                //System.Threading.Thread.Sleep(1000);
+                Console.WriteLine("Setting next transition selection");
+                me0TransitionParams.SetNextTransitionSelection(
+                    _BMDSwitcherTransitionSelection.bmdSwitcherTransitionSelectionBackground);
+
+                Console.WriteLine("Setting next transition style");
+                if (useWipe)
+                {
+                    me0TransitionParams.SetNextTransitionStyle(
+                        _BMDSwitcherTransitionStyle.bmdSwitcherTransitionStyleWipe);
+
+                    me0WipeTransitionParams.SetPattern(
+                        _BMDSwitcherPatternStyle.bmdSwitcherPatternStyleRectangleIris);
+                    me0WipeTransitionParams.SetRate(60);
+                }
+                else
+                {
+                    me0TransitionParams.SetNextTransitionStyle(
+                        _BMDSwitcherTransitionStyle.bmdSwitcherTransitionStyleMix);
+
+                    // Mix の rate も設定しておく
+                    me0MixTransitionParams.SetRate(30);
+                }
+
+
+                Console.WriteLine("Performing auto transition");
+                me0.PerformAutoTransition();
+
+                // 少し待って反映を待つ
+                for (int i = 0; i < 100; i++)
+                {
+                    int currentInTransition;
+                    me0.GetInTransition(out currentInTransition);
+
+                    if (currentInTransition != 0)
+                        break;
+
+                    System.Threading.Thread.Sleep(20);
+                }
+
+                // トランジション終了待ち
+                for (int i = 0; i < 300; i++)
+                {
+                    int currentInTransition;
+                    me0.GetInTransition(out currentInTransition);
+
+                    if (currentInTransition == 0)
+                        break;
+
+                    System.Threading.Thread.Sleep(20);
+                }
+
+                // 最終状態を確認
+                long newProgramId;
+                long newPreviewId;
+                me0.GetProgramInput(out newProgramId);
+                me0.GetPreviewInput(out newPreviewId);
+
+                Console.WriteLine($"New Program ID     : {newProgramId}");
+                Console.WriteLine($"New Preview ID     : {newPreviewId}");
+
+                Console.WriteLine("Switch completed.");
+                return 0;
+
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("エラー: " + ex.Message);
+                return 1;
+            }
+        }
+
+    }
 
 	internal class AtemSwitcher
 	{
