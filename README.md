@@ -6,30 +6,65 @@ Blackmagic ATEM Switch をコマンドラインからシンプルに切り替え
 
 - Blackmagic_ATEM_Switchers_SDK_10.2.1
 
-## セットアップ
+## 前提条件
 
-### 前提条件
+### ビルド環境
 
 - Windows OS
 - Visual Studio 2019 以上
 - Blackmagic_ATEM_Switchers_SDK_10.2.1
 
+### 実行環境
+
+- Windows OS
+- **Blackmagic_ATEM_Switchers_Windows** ドライバー/ソフトウェア
+
+> ⚠️ **重要**: `Blackmagic_ATEM_Switchers_Windows` をインストールしていない環境で実行すると、以下のエラーが発生します:
+> ```
+> エラー: CLSID {3EFEA8DB-282F-4C23-B218-FC8A2FF0861E} を含むコンポーネントの 
+> COM クラス ファクトリを取得中に、次のエラーが発生しました: 
+> 80040154 クラスが登録されていません (HRESULT からの例外:0x80040154 (REGDB_E_CLASSNOTREG))
+> ```
+> これは BMDSwitcherAPI の COM クラスが Windows レジストリに登録されていないため発生します。
+
+## セットアップ
+
 ### インストール手順
 
-1. **SDK をダウンロード**
+1. **実行環境へのドライバーインストール**
+   - 実際にアプリケーションを実行する環境（ターゲット PC）に、[Blackmagic Design のダウンロードページ](https://www.blackmagicdesign.com/jp/developer)から `Blackmagic_ATEM_Switchers_Windows` をダウンロードしてインストール
+   - これにより BMDSwitcherAPI の COM クラスが Windows レジストリに登録されます
+
+2. **ビルド環境での SDK セットアップ**
    - [Blackmagic Design のダウンロードページ](https://www.blackmagicdesign.com/jp/developer)から `Blackmagic_ATEM_Switchers_SDK_10.2.1` をダウンロード
 
-2. **Program.cs を差し替え**
+3. **Program.cs を差し替え**
    - SDK の以下のパスにある `Program.cs` を、このリポジトリの `Program.cs` で置き換えます
    ```
    Blackmagic_ATEM_Switchers_SDK_10.2.1\
    Windows\Samples\SimpleSwitcherExampleCSharp\Program.cs
    ```
 
-3. **ビルド**
+4. **ビルド**
    - `SimpleSwitcherExampleCSharp.sln` を Visual Studio で開く
    - ビルド（Build → Build Solution）
    - 出力: `SimpleSwitcherExampleCSharp.exe`
+
+## 実行環境の準備
+
+アプリケーションを実行する前に、実行マシンで以下の準備が必要です:
+
+1. **Blackmagic_ATEM_Switchers_Windows をインストール**
+   ```
+   ダウンロード → インストーラーを実行 → 再起動（推奨）
+   ```
+
+2. **ATEM ハードウェアとの接続確認**
+   - USB で接続: 接続ケーブルを挿入
+   - ネットワークで接続: 同じネットワークセグメント内に配置
+
+3. **Blackmagic ATEM Control Software で接続確認**（オプション）
+   - インストール時に一緒にインストールされる ATEM コントロールソフトウェアで、ATEM が正しく認識されることを確認
 
 ## 使い方
 
